@@ -1072,4 +1072,27 @@ public class AbstractJavaCodegenTest {
         Assert.assertEquals(property.baseType, "String");
         Assert.assertFalse(model.imports.contains("ExpandableField"), "ExpandableField import should not be added");
     }
+
+    @Test(description = "test x-expandable vendor extension transforms array property to List<ExpandableField<Type>>")
+    public void testXExpandableVendorExtensionWithArray() {
+        CodegenModel model = new CodegenModel();
+        CodegenProperty property = new CodegenProperty();
+        
+        // Set up the array property with x-expandable extension
+        property.dataType = "List<Account>";
+        property.baseType = "List";
+        property.containerType = "array";
+        property.isContainer = true;
+        property.name = "accountList";
+        property.vendorExtensions.put("x-expandable", "Account");
+
+        // Process the property
+        codegen.postProcessModelProperty(model, property);
+
+        // Verify the transformation
+        Assert.assertEquals(property.dataType, "List<ExpandableField<Account>>");
+        Assert.assertEquals(property.baseType, "List");
+        Assert.assertTrue(model.imports.contains("ExpandableField"), "ExpandableField import should be added");
+        Assert.assertTrue(model.imports.contains("List"), "List import should be added");
+    }
 }

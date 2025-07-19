@@ -1916,21 +1916,34 @@
              model.getVendorExtensions().put("x-has-readonly-properties", true);
          }
  
-         // Handle x-expandable vendor extension
-         if (property.vendorExtensions.containsKey("x-expandable")) {
-             String expandableType = (String) property.vendorExtensions.get("x-expandable");
-             if (expandableType != null && !expandableType.trim().isEmpty()) {
-                 // Transform the dataType to ExpandableField<Type>
-                 property.dataType = "ExpandableField<" + expandableType + ">";
-                 // Also update the baseType if needed
-                 property.baseType = "ExpandableField";
-                 // Add import for ExpandableField
-                 model.imports.add("ExpandableField");
-                 
-                 LOGGER.debug("Property '{}' transformed to ExpandableField<{}> due to x-expandable extension", 
-                     property.name, expandableType);
-             }
-         }
+                 // Handle x-expandable vendor extension
+        if (property.vendorExtensions.containsKey("x-expandable")) {
+            String expandableType = (String) property.vendorExtensions.get("x-expandable");
+            if (expandableType != null && !expandableType.trim().isEmpty()) {
+                // Add import for ExpandableField
+                model.imports.add("ExpandableField");
+                
+                if (property.isContainer && "array".equals(property.containerType)) {
+                    // For arrays, use List<ExpandableField<Type>>
+                    property.dataType = "List<ExpandableField<" + expandableType + ">>";
+                    property.datatypeWithEnum = "List<ExpandableField<" + expandableType + ">>";
+                    property.baseType = "List";
+                    // Ensure List import is added
+                    model.imports.add("List");
+                    
+                    LOGGER.debug("Array property '{}' transformed to List<ExpandableField<{}>> due to x-expandable extension", 
+                        property.name, expandableType);
+                } else {
+                    // For non-array properties, use ExpandableField<Type>
+                    property.dataType = "ExpandableField<" + expandableType + ">";
+                    property.datatypeWithEnum = "ExpandableField<" + expandableType + ">";
+                    property.baseType = "ExpandableField";
+                    
+                    LOGGER.debug("Property '{}' transformed to ExpandableField<{}> due to x-expandable extension", 
+                        property.name, expandableType);
+                }
+            }
+        }
  
          // if data type happens to be the same as the property name and both are upper case
          if (property.dataType != null && property.dataType.equals(property.name) && property.dataType.toUpperCase(Locale.ROOT).equals(property.name)) {

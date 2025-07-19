@@ -58,6 +58,12 @@ components:
           type: string
           description: Payment method that can be expanded
           x-expandable: PaymentMethod
+        paymentMethods:
+          type: array
+          description: List of payment methods that can be expanded
+          items:
+            type: string
+          x-expandable: PaymentMethod
         metadata:
           type: object
           description: Key-value metadata

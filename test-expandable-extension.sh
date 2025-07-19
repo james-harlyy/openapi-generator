@@ -69,6 +69,12 @@ do
             echo "  ❌ Missing ExpandableField<PaymentMethod> transformation"
         fi
         
+        if grep -q "List<ExpandableField<PaymentMethod>>" "$CUSTOMER_FILE"; then
+            echo "  ✅ Found List<ExpandableField<PaymentMethod>> array transformation"
+        else
+            echo "  ❌ Missing List<ExpandableField<PaymentMethod>> array transformation"
+        fi
+        
         # Check that regular fields are unchanged
         if grep -q "String name" "$CUSTOMER_FILE" || grep -q "private String name" "$CUSTOMER_FILE"; then
             echo "  ✅ Regular field 'name' remains as String"

@@ -53,6 +53,9 @@ public class ExpandableFieldIntegrationTest {
         assertExpandableFieldTransformation(customerContent, "account", "Account");
         assertExpandableFieldTransformation(customerContent, "subscription", "Subscription");
         assertExpandableFieldTransformation(customerContent, "defaultPaymentMethod", "PaymentMethod");
+        
+        // Verify array x-expandable transformation
+        assertExpandableArrayTransformation(customerContent, "paymentMethods", "PaymentMethod");
 
         // Verify regular fields are not transformed
         assertTrue(customerContent.contains("String name"), 
@@ -181,6 +184,22 @@ public class ExpandableFieldIntegrationTest {
         
         assertTrue(foundTransformation, 
                 String.format(Locale.ROOT, "Field '%s' should be transformed to ExpandableField<%s>. " +
+                            "Expected to find '%s' or '%s' in generated content.", 
+                            fieldName, expectedType, expectedFieldDeclaration, expectedFieldDeclarationPrivate));
+    }
+
+    /**
+     * Helper method to verify that an array field has been transformed to List<ExpandableField<Type>>
+     */
+    private void assertExpandableArrayTransformation(String content, String fieldName, String expectedType) {
+        String expectedFieldDeclaration = "List<ExpandableField<" + expectedType + ">> " + fieldName;
+        String expectedFieldDeclarationPrivate = "private List<ExpandableField<" + expectedType + ">> " + fieldName;
+        
+        boolean foundTransformation = content.contains(expectedFieldDeclaration) || 
+                                     content.contains(expectedFieldDeclarationPrivate);
+        
+        assertTrue(foundTransformation, 
+                String.format(Locale.ROOT, "Array field '%s' should be transformed to List<ExpandableField<%s>>. " +
                             "Expected to find '%s' or '%s' in generated content.", 
                             fieldName, expectedType, expectedFieldDeclaration, expectedFieldDeclarationPrivate));
     }
