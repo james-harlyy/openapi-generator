@@ -28,6 +28,7 @@ import org.mockito.Mockito;
 import org.openapitools.codegen.CodegenConstants;
 import org.openapitools.codegen.CodegenModel;
 import org.openapitools.codegen.CodegenParameter;
+import org.openapitools.codegen.CodegenProperty;
 import org.openapitools.codegen.TestUtils;
 import org.openapitools.codegen.languages.AbstractJavaCodegen;
 import org.openapitools.codegen.testutils.ConfigAssert;
@@ -991,5 +992,84 @@ public class AbstractJavaCodegenTest {
     @Test(description = "test sanitizing name of dataType when using schemaMapping and oneOf/allOf (issue 20718)")
     public void testSanitizedDataType() {
         assertThat(codegen.sanitizeDataType("org.somepkg.DataType")).isEqualTo("orgsomepkgDataType");
+    }
+
+    @Test(description = "test x-expandable vendor extension transforms property type to ExpandableField<Type>")
+    public void testXExpandableVendorExtension() {
+        CodegenModel model = new CodegenModel();
+        CodegenProperty property = new CodegenProperty();
+        
+        // Set up the property with original data type and x-expandable extension
+        property.dataType = "Account";
+        property.baseType = "Account";
+        property.name = "account";
+        property.vendorExtensions.put("x-expandable", "Account");
+
+        // Process the property
+        codegen.postProcessModelProperty(model, property);
+
+        // Verify the transformation
+        Assert.assertEquals(property.dataType, "ExpandableField<Account>");
+        Assert.assertEquals(property.baseType, "ExpandableField");
+        Assert.assertTrue(model.imports.contains("ExpandableField"), "ExpandableField import should be added");
+    }
+
+    @Test(description = "test x-expandable vendor extension with different target type")
+    public void testXExpandableVendorExtensionWithDifferentType() {
+        CodegenModel model = new CodegenModel();
+        CodegenProperty property = new CodegenProperty();
+        
+        // Set up the property with original data type String but expand to CustomType
+        property.dataType = "String";
+        property.baseType = "String";
+        property.name = "customField";
+        property.vendorExtensions.put("x-expandable", "CustomType");
+
+        // Process the property
+        codegen.postProcessModelProperty(model, property);
+
+        // Verify the transformation uses the extension value, not the original type
+        Assert.assertEquals(property.dataType, "ExpandableField<CustomType>");
+        Assert.assertEquals(property.baseType, "ExpandableField");
+        Assert.assertTrue(model.imports.contains("ExpandableField"), "ExpandableField import should be added");
+    }
+
+    @Test(description = "test property without x-expandable extension remains unchanged")
+    public void testPropertyWithoutXExpandableExtension() {
+        CodegenModel model = new CodegenModel();
+        CodegenProperty property = new CodegenProperty();
+        
+        // Set up the property without x-expandable extension
+        property.dataType = "String";
+        property.baseType = "String";
+        property.name = "normalField";
+
+        // Process the property
+        codegen.postProcessModelProperty(model, property);
+
+        // Verify no transformation occurred
+        Assert.assertEquals(property.dataType, "String");
+        Assert.assertEquals(property.baseType, "String");
+        Assert.assertFalse(model.imports.contains("ExpandableField"), "ExpandableField import should not be added");
+    }
+
+    @Test(description = "test x-expandable extension with empty value is ignored")
+    public void testXExpandableVendorExtensionWithEmptyValue() {
+        CodegenModel model = new CodegenModel();
+        CodegenProperty property = new CodegenProperty();
+        
+        // Set up the property with empty x-expandable extension
+        property.dataType = "String";
+        property.baseType = "String";
+        property.name = "fieldWithEmptyExpandable";
+        property.vendorExtensions.put("x-expandable", "");
+
+        // Process the property
+        codegen.postProcessModelProperty(model, property);
+
+        // Verify no transformation occurred
+        Assert.assertEquals(property.dataType, "String");
+        Assert.assertEquals(property.baseType, "String");
+        Assert.assertFalse(model.imports.contains("ExpandableField"), "ExpandableField import should not be added");
     }
 }

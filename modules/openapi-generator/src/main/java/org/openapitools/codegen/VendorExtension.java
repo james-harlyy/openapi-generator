@@ -24,6 +24,7 @@ public enum VendorExtension {
     X_OPERATION_EXTRA_ANNOTATION("x-operation-extra-annotation", ExtensionLevel.OPERATION, "List of custom annotations to be added to operation", null),
     X_VERSION_PARAM("x-version-param", ExtensionLevel.OPERATION_PARAMETER, "Marker property that tells that this parameter would be used for endpoint versioning. Applicable for headers & query params. true/false", null),
     X_PATTERN_MESSAGE("x-pattern-message", Arrays.asList(ExtensionLevel.FIELD, ExtensionLevel.OPERATION_PARAMETER), "Add this property whenever you need to customize the invalidation error message for the regex pattern of a variable", null),
+    X_EXPANDABLE("x-expandable", ExtensionLevel.FIELD, "Transform property type to ExpandableField<Type> where Type is the value of this extension", null),
     ;
 
     private final String name;
