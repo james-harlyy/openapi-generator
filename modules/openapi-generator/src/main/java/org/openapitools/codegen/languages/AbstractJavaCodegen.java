@@ -2066,17 +2066,31 @@ public abstract class AbstractJavaCodegen extends DefaultCodegen implements Code
                 model.imports.add("ExpandableField");
 
                 if (property.isContainer && "array".equals(property.containerType)) {
-                    LOGGER.info(
-                            "Processing property '{}' for x-expandable extension", model.classname);
+                    LOGGER.debug(
+                            "Processing array property '{}' for x-expandable extension", property.name);
 
                     // For arrays, use List<ExpandableField<Type>>
                     property.dataType = "List<ExpandableField<" + expandableType + ">>";
                     property.datatypeWithEnum = "List<ExpandableField<" + expandableType + ">>";
                     property.baseType = "List";
 
-                    property.items.dataType = "ExpandableField<" + expandableType + ">";
-                    property.items.datatypeWithEnum = "ExpandableField<" + expandableType + ">";
-                    property.items.baseType = "ExpandableField";
+                    // Create a new items object to avoid modifying shared references
+                    if (property.items != null) {
+                        CodegenProperty newItems = new CodegenProperty();
+                        // Copy essential properties from the original items
+                        newItems.name = property.items.name;
+                        newItems.description = property.items.description;
+                        newItems.required = property.items.required;
+                        newItems.vendorExtensions = new HashMap<>(property.items.vendorExtensions);
+                        
+                        // Set the expandable field properties
+                        newItems.dataType = "ExpandableField<" + expandableType + ">";
+                        newItems.datatypeWithEnum = "ExpandableField<" + expandableType + ">";
+                        newItems.baseType = "ExpandableField";
+                        
+                        // Replace the items reference
+                        property.items = newItems;
+                    }
 
                     // Ensure List import is added
                     model.imports.add("List");

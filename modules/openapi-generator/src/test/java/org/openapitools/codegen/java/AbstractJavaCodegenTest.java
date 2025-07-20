@@ -1095,4 +1095,57 @@ public class AbstractJavaCodegenTest {
         Assert.assertTrue(model.imports.contains("ExpandableField"), "ExpandableField import should be added");
         Assert.assertTrue(model.imports.contains("List"), "List import should be added");
     }
+
+    @Test(description = "test array properties with same name but different x-expandable settings don't interfere")
+    public void testArrayPropertiesIsolation() {
+        // Create two models with array properties having the same name
+        CodegenModel surveyModel = new CodegenModel();
+        surveyModel.name = "Survey";
+        
+        CodegenModel otherModel = new CodegenModel();
+        otherModel.name = "Other";
+        
+        // Create shared items object (simulating the real scenario)
+        CodegenProperty sharedItems = new CodegenProperty();
+        sharedItems.dataType = "String";
+        sharedItems.baseType = "String";
+        
+        // Set up first property - expandable array
+        CodegenProperty expandableStepsProperty = new CodegenProperty();
+        expandableStepsProperty.name = "steps";
+        expandableStepsProperty.dataType = "List<String>";
+        expandableStepsProperty.baseType = "List";
+        expandableStepsProperty.isContainer = true;
+        expandableStepsProperty.containerType = "array";
+        expandableStepsProperty.items = sharedItems; // Same items reference
+        expandableStepsProperty.vendorExtensions.put("x-expandable", "Step");
+
+        // Set up second property - regular array (same name, same items reference)
+        CodegenProperty regularStepsProperty = new CodegenProperty();
+        regularStepsProperty.name = "steps";
+        regularStepsProperty.dataType = "List<String>";
+        regularStepsProperty.baseType = "List";
+        regularStepsProperty.isContainer = true;
+        regularStepsProperty.containerType = "array";
+        regularStepsProperty.items = sharedItems; // Same items reference
+        // No x-expandable extension
+
+        // Process expandable property first
+        codegen.postProcessModelProperty(surveyModel, expandableStepsProperty);
+        
+        // Process regular property second  
+        codegen.postProcessModelProperty(otherModel, regularStepsProperty);
+
+        // Verify expandable property was transformed
+        Assert.assertEquals("List<ExpandableField<Step>>", expandableStepsProperty.dataType);
+        Assert.assertEquals("List", expandableStepsProperty.baseType);
+        Assert.assertEquals("ExpandableField<Step>", expandableStepsProperty.items.dataType);
+        Assert.assertTrue(surveyModel.imports.contains("ExpandableField"));
+
+        // Verify regular property was NOT transformed
+        Assert.assertEquals("List<String>", regularStepsProperty.dataType);
+        Assert.assertEquals("List", regularStepsProperty.baseType);
+        Assert.assertEquals("String", regularStepsProperty.items.dataType);
+        Assert.assertFalse(otherModel.imports.contains("ExpandableField"));
+    }
 }
