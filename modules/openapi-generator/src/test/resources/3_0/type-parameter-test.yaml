@@ -1,0 +1,45 @@
+openapi: 3.0.0
+info:
+  title: Type Parameter Extension Test API
+  version: 1.0.0
+paths:
+  /analytics:
+    get:
+      operationId: getAnalytics
+      responses:
+        "200":
+          description: success
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BaseAnalytics"
+components:
+  schemas:
+    BaseObject:
+      type: object
+      properties:
+        id:
+          type: string
+    BaseAnalytics:
+      allOf:
+        - $ref: "#/components/schemas/BaseObject"
+        - type: object
+          required:
+            - analytics
+            - compiledAt
+            - results
+          properties:
+            analytics:
+              type: object
+              x-type-parameter: T
+            results:
+              type: array
+              items:
+                type: object
+                x-type-parameter: R
+            compiledAt:
+              type: integer
+              format: int64
+      x-type-parameters:
+        - T
+        - R

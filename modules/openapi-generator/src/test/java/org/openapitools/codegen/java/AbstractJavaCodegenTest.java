@@ -994,6 +994,64 @@ public class AbstractJavaCodegenTest {
         assertThat(codegen.sanitizeDataType("org.somepkg.DataType")).isEqualTo("orgsomepkgDataType");
     }
 
+    @Test(description = "test x-type-parameters model vendor extension is normalized")
+    public void testXTypeParametersVendorExtensionOnModel() {
+        Schema<?> schema = new ObjectSchema();
+        schema.addExtension("x-type-parameters", Arrays.asList("T", " ", "R"));
+
+        CodegenModel generatedModel = codegen.fromModel("BaseAnalytics", schema);
+
+        Assert.assertEquals(generatedModel.vendorExtensions.get("x-type-parameters"), Arrays.asList("T", "R"));
+    }
+
+    @Test(description = "test x-type-parameter vendor extension transforms object property type")
+    public void testXTypeParameterVendorExtension() {
+        CodegenModel model = new CodegenModel();
+        CodegenProperty property = new CodegenProperty();
+
+        property.dataType = "Object";
+        property.datatypeWithEnum = "Object";
+        property.baseType = "Object";
+        property.name = "analytics";
+        property.vendorExtensions.put("x-type-parameter", "T");
+
+        codegen.postProcessModelProperty(model, property);
+
+        Assert.assertEquals(property.dataType, "T");
+        Assert.assertEquals(property.datatypeWithEnum, "T");
+        Assert.assertEquals(property.baseType, "T");
+    }
+
+    @Test(description = "test x-type-parameter vendor extension on array items transforms container type")
+    public void testXTypeParameterVendorExtensionForArrayItems() {
+        CodegenModel model = new CodegenModel();
+        CodegenProperty property = new CodegenProperty();
+        CodegenProperty items = new CodegenProperty();
+
+        items.dataType = "Object";
+        items.datatypeWithEnum = "Object";
+        items.baseType = "Object";
+        items.vendorExtensions.put("x-type-parameter", "R");
+
+        property.name = "results";
+        property.dataType = "List<Object>";
+        property.datatypeWithEnum = "List<Object>";
+        property.baseType = "List";
+        property.isContainer = true;
+        property.containerType = "array";
+        property.items = items;
+
+        codegen.postProcessModelProperty(model, property);
+
+        Assert.assertEquals(property.dataType, "List<R>");
+        Assert.assertEquals(property.datatypeWithEnum, "List<R>");
+        Assert.assertEquals(property.baseType, "List");
+        Assert.assertEquals(property.items.dataType, "R");
+        Assert.assertEquals(property.items.datatypeWithEnum, "R");
+        Assert.assertEquals(property.items.baseType, "R");
+        Assert.assertTrue(model.imports.contains("List"), "List import should be added");
+    }
+
     @Test(description = "test x-expandable vendor extension transforms property type to ExpandableField<Type>")
     public void testXExpandableVendorExtension() {
         CodegenModel model = new CodegenModel();
