@@ -25,6 +25,8 @@ public enum VendorExtension {
     X_VERSION_PARAM("x-version-param", ExtensionLevel.OPERATION_PARAMETER, "Marker property that tells that this parameter would be used for endpoint versioning. Applicable for headers & query params. true/false", null),
     X_PATTERN_MESSAGE("x-pattern-message", Arrays.asList(ExtensionLevel.FIELD, ExtensionLevel.OPERATION_PARAMETER), "Add this property whenever you need to customize the invalidation error message for the regex pattern of a variable", null),
     X_EXPANDABLE("x-expandable", ExtensionLevel.FIELD, "Transform property type to ExpandableField<Type> where Type is the value of this extension", null),
+    X_TYPE_PARAMETER("x-type-parameter", ExtensionLevel.FIELD, "Specify a Java generic type parameter for a model property", null),
+    X_TYPE_PARAMETERS("x-type-parameters", ExtensionLevel.MODEL, "Specify Java generic type parameters for a model declaration", null),
     ;
 
     private final String name;

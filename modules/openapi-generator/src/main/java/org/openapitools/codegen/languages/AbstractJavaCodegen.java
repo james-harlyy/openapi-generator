@@ -82,6 +82,8 @@ public abstract class AbstractJavaCodegen extends DefaultCodegen implements Code
     private final Logger LOGGER = LoggerFactory.getLogger(AbstractJavaCodegen.class);
     private static final String ARTIFACT_VERSION_DEFAULT_VALUE = "1.0.0";
     private static final ZoneId UTC = ZoneId.of("UTC");
+    private static final String X_TYPE_PARAMETER = "x-type-parameter";
+    private static final String X_TYPE_PARAMETERS = "x-type-parameters";
 
     public static final String DEFAULT_LIBRARY = "<default>";
     public static final String DATE_LIBRARY = "dateLibrary";
@@ -1948,6 +1950,7 @@ public abstract class AbstractJavaCodegen extends DefaultCodegen implements Code
     public CodegenModel fromModel(String name, Schema model) {
         Map<String, Schema> allDefinitions = ModelUtils.getSchemas(this.openAPI);
         CodegenModel codegenModel = super.fromModel(name, model);
+        normalizeTypeParametersExtension(codegenModel);
         if (codegenModel.description != null) {
             if (!AnnotationLibrary.SWAGGER2.equals(getAnnotationLibrary())) {
                 // TODO: should only be for SWAGGER1, but some NONE/MICROPROFILE templates still
@@ -1976,6 +1979,30 @@ public abstract class AbstractJavaCodegen extends DefaultCodegen implements Code
         addAdditionalImports(codegenModel, codegenModel.getComposedSchemas());
         setEnumDiscriminatorDefaultValue(codegenModel);
         return codegenModel;
+    }
+
+    private void normalizeTypeParametersExtension(CodegenModel codegenModel) {
+        if (codegenModel == null || codegenModel.vendorExtensions == null) {
+            return;
+        }
+        Object typeParametersValue = codegenModel.vendorExtensions.get(X_TYPE_PARAMETERS);
+        if (!(typeParametersValue instanceof Collection<?>)) {
+            return;
+        }
+
+        List<String> normalizedTypeParameters = ((Collection<?>) typeParametersValue).stream()
+                .filter(Objects::nonNull)
+                .map(String::valueOf)
+                .map(String::trim)
+                .filter(StringUtils::isNotBlank)
+                .collect(Collectors.toList());
+
+        if (normalizedTypeParameters.isEmpty()) {
+            codegenModel.vendorExtensions.remove(X_TYPE_PARAMETERS);
+            return;
+        }
+
+        codegenModel.vendorExtensions.put(X_TYPE_PARAMETERS, normalizedTypeParameters);
     }
 
     private void addAdditionalImports(CodegenModel model, CodegenComposedSchemas composedSchemas) {
@@ -2057,6 +2084,9 @@ public abstract class AbstractJavaCodegen extends DefaultCodegen implements Code
             model.getVendorExtensions().put("x-has-readonly-properties", true);
         }
 
+        // Handle x-type-parameter and x-type-parameters vendor extensions
+        applyTypeParameterExtension(model, property);
+
         // Handle x-expandable vendor extension
 
         if (property.vendorExtensions.containsKey("x-expandable")) {
@@ -2118,6 +2148,46 @@ public abstract class AbstractJavaCodegen extends DefaultCodegen implements Code
                 && property.dataType.toUpperCase(Locale.ROOT).equals(property.name)) {
             property.name = property.name.toLowerCase(Locale.ROOT);
         }
+    }
+
+    private void applyTypeParameterExtension(CodegenModel model, CodegenProperty property) {
+        if (property == null || model == null) {
+            return;
+        }
+
+        String propertyTypeParameter = getTypeParameterValue(property.vendorExtensions == null
+                ? null
+                : property.vendorExtensions.get(X_TYPE_PARAMETER));
+        if (StringUtils.isNotBlank(propertyTypeParameter) && !property.isContainer) {
+            property.dataType = propertyTypeParameter;
+            property.datatypeWithEnum = propertyTypeParameter;
+            property.baseType = propertyTypeParameter;
+        }
+
+        if (property.isContainer && "array".equals(property.containerType) && property.items != null) {
+            String itemsTypeParameter = getTypeParameterValue(property.items.vendorExtensions == null
+                    ? null
+                    : property.items.vendorExtensions.get(X_TYPE_PARAMETER));
+            if (StringUtils.isNotBlank(itemsTypeParameter)) {
+                property.dataType = "List<" + itemsTypeParameter + ">";
+                property.datatypeWithEnum = "List<" + itemsTypeParameter + ">";
+                property.baseType = "List";
+
+                property.items.dataType = itemsTypeParameter;
+                property.items.datatypeWithEnum = itemsTypeParameter;
+                property.items.baseType = itemsTypeParameter;
+
+                model.imports.add("List");
+            }
+        }
+    }
+
+    private String getTypeParameterValue(Object typeParameterValue) {
+        if (!(typeParameterValue instanceof String)) {
+            return null;
+        }
+        String normalizedTypeParameter = ((String) typeParameterValue).trim();
+        return StringUtils.isBlank(normalizedTypeParameter) ? null : normalizedTypeParameter;
     }
 
     @Override
