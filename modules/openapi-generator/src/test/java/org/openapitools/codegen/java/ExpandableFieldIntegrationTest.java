@@ -167,9 +167,11 @@ public class ExpandableFieldIntegrationTest {
         assertTrue(content.contains("String nullExpandableField") || content.contains("private String nullExpandableField"),
                 "Null x-expandable field should remain as String");
         
-        // Should not contain any ExpandableField references
-        assertFalse(content.contains("ExpandableField"),
-                "No ExpandableField should be generated for empty extensions");
+        // Should not contain any generated ExpandableField types or imports
+        assertFalse(content.contains("ExpandableField<"),
+                "No ExpandableField type should be generated for empty extensions");
+        assertFalse(content.contains("import ExpandableField;"),
+                "No ExpandableField import should be generated for empty extensions");
     }
 
     /**
