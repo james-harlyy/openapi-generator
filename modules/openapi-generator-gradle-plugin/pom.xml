@@ -17,23 +17,8 @@
 
     <properties>
         <skipNexusStagingDeployMojo>true</skipNexusStagingDeployMojo>
-        <gradleVersion>7.6.4</gradleVersion>
-        <gradle-tooling.version>7.4.2</gradle-tooling.version>
+        <gradle.build.task>build</gradle.build.task>
     </properties>
-
-    <pluginRepositories>
-        <pluginRepository>
-            <id>Gradle Releases</id>
-            <name>Gradle Releases repository</name>
-            <url>https://repo.gradle.org/gradle/libs-releases/</url>
-            <releases>
-                <enabled>true</enabled>
-            </releases>
-            <snapshots>
-                <enabled>false</enabled>
-            </snapshots>
-        </pluginRepository>
-    </pluginRepositories>
 
     <dependencies>
         <dependency>
@@ -75,45 +60,34 @@
             </plugin>
             <!-- 2) run gradle -->
             <plugin>
-                <groupId>org.fortasoft</groupId>
-                <artifactId>gradle-maven-plugin</artifactId>
-                <version>1.0.8</version>
-
-                <!-- The plugin is no longer supported, so dependency has to be overridden -->
-                <!-- https://github.com/LendingClub/gradle-maven-plugin/issues/39 -->
-                <dependencies>
-                    <dependency>
-                        <groupId>org.gradle</groupId>
-                        <artifactId>gradle-tooling-api</artifactId>
-                        <version>${gradle-tooling.version}</version>
-                    </dependency>
-                </dependencies>
-
-                <configuration>
-                    <gradleVersion>${gradleVersion}</gradleVersion>
-                    <args>
-                        <arg>-P openApiGeneratorVersion=${project.version}</arg>
-                        <!--
-                        <arg>-Psigning.keyId=${env.SIGNING_KEY}</arg>
-                        <arg>-Psigning.password=${env.SIGNING_PASSPHRASE}</arg>
-                        <arg>-Psigning.secretKeyRingFile=${env.TRAVIS_BUILD_DIR}/sec.gpg</arg>
-                        -->
-                    </args>
-                </configuration>
+                <artifactId>maven-antrun-plugin</artifactId>
+                <version>3.1.0</version>
                 <executions>
                     <execution>
                         <phase>install</phase>
                         <goals>
-                            <!-- goal must be "invoke" -->
-                            <goal>invoke</goal>
+                            <goal>run</goal>
                         </goals>
                         <configuration>
-                            <tasks>
-                                <!-- calls "clean assemble install" -->
-                                <task>clean</task>
-                                <task>build</task>
-                                <task>publishToMavenLocal</task>
-                            </tasks>
+                            <target>
+                                <exec dir="${project.basedir}" executable="sh" failonerror="true" osfamily="unix">
+                                    <arg value="./gradlew"/>
+                                    <arg value="--no-daemon"/>
+                                    <arg value="clean"/>
+                                    <arg value="${gradle.build.task}"/>
+                                    <arg value="publishToMavenLocal"/>
+                                    <arg value="-PopenApiGeneratorVersion=${project.version}"/>
+                                </exec>
+                                <exec dir="${project.basedir}" executable="cmd" failonerror="true" osfamily="windows">
+                                    <arg value="/c"/>
+                                    <arg value="gradlew.bat"/>
+                                    <arg value="--no-daemon"/>
+                                    <arg value="clean"/>
+                                    <arg value="${gradle.build.task}"/>
+                                    <arg value="publishToMavenLocal"/>
+                                    <arg value="-PopenApiGeneratorVersion=${project.version}"/>
+                                </exec>
+                            </target>
                         </configuration>
                     </execution>
                 </executions>
@@ -122,6 +96,18 @@
     </build>
 
     <profiles>
+        <profile>
+            <id>skip-gradle-tests</id>
+            <activation>
+                <property>
+                    <name>skipTests</name>
+                    <value>true</value>
+                </property>
+            </activation>
+            <properties>
+                <gradle.build.task>assemble</gradle.build.task>
+            </properties>
+        </profile>
         <profile>
             <id>static-analysis</id>
             <build>
