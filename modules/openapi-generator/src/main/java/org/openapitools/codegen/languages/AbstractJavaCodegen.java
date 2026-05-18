@@ -1949,7 +1949,43 @@ public abstract class AbstractJavaCodegen extends DefaultCodegen implements Code
     @Override
     public CodegenModel fromModel(String name, Schema model) {
         Map<String, Schema> allDefinitions = ModelUtils.getSchemas(this.openAPI);
+
+        // If the schema has a "allOf" check for the "x-type-parameters"
+        if (model.getAllOf() != null && !model.getAllOf().isEmpty()) {
+            for (Object allOfObj : model.getAllOf()) {
+                if (!(allOfObj instanceof Schema)) {
+                    continue;
+                }
+                Schema<?> allOfSchema = (Schema<?>) allOfObj;
+
+                if (allOfSchema.getExtensions() != null
+                        && allOfSchema.getExtensions().containsKey(X_TYPE_PARAMETERS)) {
+
+                    if (model.getExtensions() == null) {
+                        model.setExtensions(new HashMap<>());
+                    }
+
+                    Object existing = model.getExtensions().get(X_TYPE_PARAMETERS);
+                    Object incoming = allOfSchema.getExtensions().get(X_TYPE_PARAMETERS);
+
+                    // Create a set to guarantee uniqueness
+                    Set<Object> merged = new LinkedHashSet<>();
+
+                    if (existing instanceof Collection<?>) {
+                        merged.addAll((Collection<?>) existing);
+                    }
+
+                    if (incoming instanceof Collection<?>) {
+                        merged.addAll((Collection<?>) incoming);
+                    }
+
+                    model.getExtensions().put(X_TYPE_PARAMETERS, merged);
+                }
+            }
+        }
+
         CodegenModel codegenModel = super.fromModel(name, model);
+
         normalizeTypeParametersExtension(codegenModel);
         if (codegenModel.description != null) {
             if (!AnnotationLibrary.SWAGGER2.equals(getAnnotationLibrary())) {
