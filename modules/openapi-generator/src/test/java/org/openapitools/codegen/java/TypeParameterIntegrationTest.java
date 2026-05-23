@@ -44,6 +44,29 @@ public class TypeParameterIntegrationTest {
                 "results field should use x-type-parameter from array items");
     }
 
+    @Test
+    public void testParametricArgumentsArePassedToParent(@TempDir Path tempDir) throws IOException {
+        final CodegenConfigurator configurator = new CodegenConfigurator()
+                .setGeneratorName("java")
+                .setLibrary("okhttp-gson")
+                .setInputSpec("src/test/resources/3_0/incident-analytics-type-parameters.yaml")
+                .setOutputDir(tempDir.toAbsolutePath().toString())
+                .addAdditionalProperty("modelPackage", "com.example.model");
+
+        final ClientOptInput clientOptInput = configurator.toClientOptInput();
+        DefaultGenerator generator = new DefaultGenerator();
+        List<File> files = generator.opts(clientOptInput).generate();
+
+        assertFalse(files.isEmpty(), "No files were generated");
+
+        File incidentAnalyticsFile = findGeneratedFile(tempDir, "IncidentAnalytics.java");
+        assertNotNull(incidentAnalyticsFile, "IncidentAnalytics.java file was not generated");
+
+        String content = Files.readString(incidentAnalyticsFile.toPath());
+        assertTrue(content.contains("extends BaseAnalytics<IncidentAnalyticsCount, IncidentTimeBucket>"),
+                "IncidentAnalytics should pass parametric arguments into the parent class");
+    }
+
     private File findGeneratedFile(Path outputDir, String fileName) {
         try {
             return Files.walk(outputDir)

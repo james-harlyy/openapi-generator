@@ -31,6 +31,8 @@ import org.openapitools.codegen.CodegenParameter;
 import org.openapitools.codegen.CodegenProperty;
 import org.openapitools.codegen.TestUtils;
 import org.openapitools.codegen.languages.AbstractJavaCodegen;
+import org.openapitools.codegen.model.ModelMap;
+import org.openapitools.codegen.model.ModelsMap;
 import org.openapitools.codegen.testutils.ConfigAssert;
 import org.openapitools.codegen.utils.ModelUtils;
 import org.testng.Assert;
@@ -1002,6 +1004,50 @@ public class AbstractJavaCodegenTest {
         CodegenModel generatedModel = codegen.fromModel("BaseAnalytics", schema);
 
         Assert.assertEquals(generatedModel.vendorExtensions.get("x-type-parameters"), Arrays.asList("T", "R"));
+    }
+
+    @Test(description = "test x-parametric-arguments on allOf maps to parent type parameters")
+    public void testXParametricArgumentsVendorExtensionOnAllOfModel() {
+        OpenAPI openAPI = TestUtils.parseFlattenSpec("src/test/resources/3_0/incident-analytics-type-parameters.yaml");
+        codegen.setOpenAPI(openAPI);
+        Schema<?> incidentAnalyticsSchema = openAPI.getComponents().getSchemas().get("IncidentAnalytics");
+        CodegenModel generatedModel = codegen.fromModel("IncidentAnalytics", incidentAnalyticsSchema);
+
+        Assert.assertEquals(generatedModel.vendorExtensions.get("x-parametric-arguments"),
+                Arrays.asList("IncidentAnalyticsCount", "IncidentTimeBucket"));
+        Assert.assertEquals(generatedModel.parent, "BaseAnalytics<IncidentAnalyticsCount, IncidentTimeBucket>");
+    }
+
+    @Test(description = "test x-parametric-arguments preserves parentModel after post processing")
+    public void testXParametricArgumentsPreservesParentModel() {
+        OpenAPI openAPI = TestUtils.parseFlattenSpec("src/test/resources/3_0/incident-analytics-type-parameters.yaml");
+        codegen.setOpenAPI(openAPI);
+
+        CodegenModel baseAnalytics = codegen.fromModel("BaseAnalytics", openAPI.getComponents().getSchemas().get("BaseAnalytics"));
+        CodegenModel incidentAnalytics = codegen.fromModel("IncidentAnalytics", openAPI.getComponents().getSchemas().get("IncidentAnalytics"));
+        baseAnalytics.parent = "PaginatedResponse";
+
+        ModelsMap baseModels = new ModelsMap();
+        ModelMap baseModelMap = new ModelMap();
+        baseModelMap.setModel(baseAnalytics);
+        baseModels.setModels(Collections.singletonList(baseModelMap));
+
+        ModelsMap incidentModels = new ModelsMap();
+        ModelMap incidentModelMap = new ModelMap();
+        incidentModelMap.setModel(incidentAnalytics);
+        incidentModels.setModels(Collections.singletonList(incidentModelMap));
+
+        Map<String, ModelsMap> results = codegen.postProcessAllModels(new HashMap<String, ModelsMap>() {{
+            put("BaseAnalytics", baseModels);
+            put("IncidentAnalytics", incidentModels);
+        }});
+
+        CodegenModel processedIncidentAnalytics = results.get("IncidentAnalytics").getModels().get(0).getModel();
+        Assert.assertNotNull(processedIncidentAnalytics.parentModel);
+        Assert.assertEquals(processedIncidentAnalytics.parentModel.name, "BaseAnalytics");
+        Assert.assertEquals(processedIncidentAnalytics.parentModel.parent,
+            "PaginatedResponse<IncidentAnalyticsCount, IncidentTimeBucket>");
+        Assert.assertEquals(processedIncidentAnalytics.parent, "BaseAnalytics<IncidentAnalyticsCount, IncidentTimeBucket>");
     }
 
     @Test(description = "test x-type-parameter vendor extension transforms object property type")

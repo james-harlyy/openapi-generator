@@ -620,7 +620,7 @@ public class DefaultCodegen implements CodegenConfig {
         // Fix up all parent and interface CodegenModel references.
         for (CodegenModel cm : allModels.values()) {
             if (cm.getParent() != null) {
-                cm.setParentModel(allModels.get(cm.getParent()));
+                cm.setParentModel(allModels.get(stripTypeParameters(cm.getParent())));
             }
             if (cm.getInterfaces() != null && !cm.getInterfaces().isEmpty()) {
                 cm.setInterfaceModels(new ArrayList<>(cm.getInterfaces().size()));
@@ -636,7 +636,7 @@ public class DefaultCodegen implements CodegenConfig {
         // Let parent know about all its children
         for (Map.Entry<String, CodegenModel> allModelsEntry : allModels.entrySet()) {
             CodegenModel cm = allModelsEntry.getValue();
-            CodegenModel parent = allModels.get(cm.getParent());
+            CodegenModel parent = allModels.get(stripTypeParameters(cm.getParent()));
             if (parent != null) {
                 if (!parent.permits.contains(cm.classname) && parent.permits.stream()
                         .noneMatch(name -> name.equals(cm.getName()))) {
@@ -645,7 +645,7 @@ public class DefaultCodegen implements CodegenConfig {
             }
             // if a discriminator exists on the parent, don't add this child to the inheritance hierarchy
             // TODO Determine what to do if the parent discriminator name == the grandparent discriminator name
-            while (parent != null) {
+                while (parent != null) {
                 if (parent.getChildren() == null) {
                     parent.setChildren(new ArrayList<>());
                 }
@@ -656,12 +656,12 @@ public class DefaultCodegen implements CodegenConfig {
 
                 parent.hasChildren = true;
                 Schema parentSchema = this.openAPI.getComponents().getSchemas().get(parent.schemaName);
-                if (parentSchema == null) {
+                    if (parentSchema == null) {
                     LOGGER.warn("Failed to look up parent schema: {}", parent.schemaName);
                     parent = null;
                 } else {
                     if (parentSchema.getDiscriminator() == null) {
-                        parent = allModels.get(parent.getParent());
+                        parent = allModels.get(stripTypeParameters(parent.getParent()));
                     } else {
                         parent = null;
                     }
@@ -684,6 +684,18 @@ public class DefaultCodegen implements CodegenConfig {
         setCircularReferences(allModels);
 
         return objs;
+    }
+
+    /**
+     * Strip generic type parameters from a model name.
+     * e.g. "Parent<T>" -> "Parent"
+     */
+    private String stripTypeParameters(String name) {
+        if (name == null) {
+            return null;
+        }
+        int idx = name.indexOf('<');
+        return idx > 0 ? name.substring(0, idx) : name;
     }
 
     /**

@@ -1,0 +1,37 @@
+openapi: 3.0.0
+info:
+  title: Incident Analytics Type Parameter Test API
+  version: 1.0.0
+paths:
+  /analytics/incidents:
+    get:
+      operationId: getIncidentAnalytics
+      responses:
+        "200":
+          description: success
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/IncidentAnalytics"
+components:
+  schemas:
+    IncidentAnalyticsCount:
+      type: string
+    IncidentTimeBucket:
+      type: string
+    BaseAnalytics:
+      allOf:
+        - type: object
+          properties:
+            id:
+              type: string
+      x-type-parameters:
+        - T
+        - R
+    IncidentAnalytics:
+      allOf:
+        - $ref: "#/components/schemas/BaseAnalytics"
+        - type: object
+          x-parametric-arguments:
+            - "#/IncidentAnalyticsCount"
+            - "#/IncidentTimeBucket"

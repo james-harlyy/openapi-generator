@@ -84,6 +84,7 @@ public abstract class AbstractJavaCodegen extends DefaultCodegen implements Code
     private static final ZoneId UTC = ZoneId.of("UTC");
     private static final String X_TYPE_PARAMETER = "x-type-parameter";
     private static final String X_TYPE_PARAMETERS = "x-type-parameters";
+    private static final String X_PARAMETRIC_ARGUMENTS = "x-parametric-arguments";
 
     public static final String DEFAULT_LIBRARY = "<default>";
     public static final String DATE_LIBRARY = "dateLibrary";
@@ -840,6 +841,25 @@ public abstract class AbstractJavaCodegen extends DefaultCodegen implements Code
                             propertyHash.put(property.name, property);
                             final CodegenProperty parentVar = property.clone();
                             parentVar.isInherited = true;
+
+                            // If parametric arguments were used to bind parent's type parameters
+                            // resolve them through the inheritance chain and substitute into
+                            // the parent's property type so templates see the actual concrete
+                            // type (not the parent's type parameter name).
+                            try {
+                                Map<String, String> typeMapping = resolveTypeArgumentMapping(codegenModel, parentCodegenModel);
+
+                                if (!typeMapping.isEmpty() && parentVar.datatypeWithEnum != null) {
+                                    parentVar.datatypeWithEnum = applyTypeMapping(parentVar.datatypeWithEnum, typeMapping);
+                                }
+                                if (!typeMapping.isEmpty() && parentVar.dataType != null) {
+                                    parentVar.dataType = applyTypeMapping(parentVar.dataType, typeMapping);
+                                }
+                            } catch (Exception e) {
+                                // best-effort substitution; on failure keep original types
+                                LOGGER.debug("failed to apply type argument mapping for {} -> {}: {}", codegenModel.name,
+                                        parentCodegenModel.name, e.getMessage());
+                            }
                             LOGGER.debug("adding parent variable {} to {}", property.name, codegenModel.name);
                             codegenModel.parentVars.add(parentVar);
                             Set<String> imports = parentVar
@@ -902,6 +922,89 @@ public abstract class AbstractJavaCodegen extends DefaultCodegen implements Code
             parentCodegenModel = parentCodegenModel.parentModel;
         }
         return parentModelList;
+    }
+
+    /**
+     * Resolve mapping of type parameter names declared on ancestor models to the concrete
+     * type expressions as seen from the given child model. This composes mappings through
+     * the inheritance chain so that ancestor type parameters are resolved to the final
+     * concrete types (or expressions) provided by the subclass chain.
+     */
+    private Map<String, String> resolveTypeArgumentMapping(CodegenModel child, CodegenModel ancestor) {
+        Map<String, String> mapping = new HashMap<>();
+        if (child == null || ancestor == null) {
+            return mapping;
+        }
+
+        CodegenModel current = child;
+        // Walk up from child towards ancestor, composing mappings as we go.
+        while (current != null && current != ancestor) {
+            CodegenModel parent = current.parentModel;
+            if (parent == null) {
+                break;
+            }
+
+            // actual args current provided to its parent (camel-case vendor extension added by Java codegen)
+            Object rawActualArgs = current.vendorExtensions.get("x-parametric-arguments");
+
+            // declared param names on the parent
+            Object rawParentParams = parent.vendorExtensions.get("x-type-parameters");
+
+            if (rawParentParams instanceof List && rawActualArgs instanceof List) {
+                @SuppressWarnings("unchecked")
+                List<String> parentParams = (List<String>) rawParentParams;
+                @SuppressWarnings("unchecked")
+                List<String> actualArgs = (List<String>) rawActualArgs;
+
+                for (int i = 0; i < parentParams.size() && i < actualArgs.size(); i++) {
+                    String paramName = parentParams.get(i);
+                    String argValue = actualArgs.get(i);
+                    if (argValue == null) {
+                        continue;
+                    }
+                    // If the argValue itself references other type parameters already in mapping,
+                    // apply current mapping so we store the resolved expression.
+                    String resolved = applyTypeMapping(argValue, mapping);
+                    mapping.put(paramName, resolved);
+                }
+            }
+
+            current = parent;
+        }
+
+        return mapping;
+    }
+
+    /**
+     * Apply a mapping from type parameter name -> concrete expression to a type string.
+     * Performs repeated substitution until stable or until a small iteration limit.
+     */
+    private String applyTypeMapping(String type, Map<String, String> mapping) {
+        if (type == null || mapping == null || mapping.isEmpty()) {
+            return type;
+        }
+
+        String result = type;
+        // iterate to resolve nested parameter references
+        for (int pass = 0; pass < 10; pass++) {
+            String updated = result;
+            for (Map.Entry<String, String> e : mapping.entrySet()) {
+                String param = e.getKey();
+                String val = e.getValue();
+                if (val == null) {
+                    continue;
+                }
+                // replace whole-word occurrences of the param
+                updated = java.util.regex.Pattern.compile("\\b" + java.util.regex.Pattern.quote(param) + "\\b")
+                        .matcher(updated).replaceAll(java.util.regex.Matcher.quoteReplacement(val));
+            }
+            if (updated.equals(result)) {
+                break;
+            }
+            result = updated;
+        }
+
+        return result;
     }
 
     /**
@@ -1981,12 +2084,40 @@ public abstract class AbstractJavaCodegen extends DefaultCodegen implements Code
 
                     model.getExtensions().put(X_TYPE_PARAMETERS, merged);
                 }
+
+                if (allOfSchema.getExtensions() != null
+                    && allOfSchema.getExtensions().containsKey(X_PARAMETRIC_ARGUMENTS)) {
+
+                    if (model.getExtensions() == null) {
+                        model.setExtensions(new HashMap<>());
+                    }
+
+                    Object existing = model.getExtensions().get(X_PARAMETRIC_ARGUMENTS);
+                    Object incoming = allOfSchema.getExtensions().get(X_PARAMETRIC_ARGUMENTS);
+
+                    // Create a set to guarantee uniqueness
+                    Set<Object> merged = new LinkedHashSet<>();
+
+                    if (existing instanceof Collection<?>) {
+                        merged.addAll((Collection<?>) existing);
+                    }
+
+                    if (incoming instanceof Collection<?>) {
+                        merged.addAll((Collection<?>) incoming);
+                    }
+
+                    model.getExtensions().put(X_PARAMETRIC_ARGUMENTS, merged);
+                }
             }
         }
 
         CodegenModel codegenModel = super.fromModel(name, model);
 
+        mergeTopLevelTypeParameters(codegenModel, model);
         normalizeTypeParametersExtension(codegenModel);
+        ensureAllOfParentModel(codegenModel, model, allDefinitions);
+        applyParametricArgumentsToParent(codegenModel);
+
         if (codegenModel.description != null) {
             if (!AnnotationLibrary.SWAGGER2.equals(getAnnotationLibrary())) {
                 // TODO: should only be for SWAGGER1, but some NONE/MICROPROFILE templates still
@@ -2017,28 +2148,136 @@ public abstract class AbstractJavaCodegen extends DefaultCodegen implements Code
         return codegenModel;
     }
 
+    private void mergeTopLevelTypeParameters(CodegenModel codegenModel, Schema model) {
+        if (codegenModel == null || model == null || model.getExtensions() == null) {
+            return;
+        }
+
+        for (String key : Arrays.asList(X_TYPE_PARAMETERS, X_PARAMETRIC_ARGUMENTS)) {
+            Object typeParametersValue = model.getExtensions().get(key);
+            if (!(typeParametersValue instanceof Collection<?>)) {
+                continue;
+            }
+
+            if (codegenModel.vendorExtensions == null) {
+                codegenModel.vendorExtensions = new HashMap<>();
+            }
+
+            codegenModel.vendorExtensions.putIfAbsent(key, typeParametersValue);
+        }
+    }
+
     private void normalizeTypeParametersExtension(CodegenModel codegenModel) {
         if (codegenModel == null || codegenModel.vendorExtensions == null) {
             return;
         }
-        Object typeParametersValue = codegenModel.vendorExtensions.get(X_TYPE_PARAMETERS);
+        for (String key : Arrays.asList(X_TYPE_PARAMETERS, X_PARAMETRIC_ARGUMENTS)) {
+            Object typeParametersValue = codegenModel.vendorExtensions.get(key);
+            if (!(typeParametersValue instanceof Collection<?>)) {
+                continue;
+            }
+
+                List<String> normalizedTypeParameters = ((Collection<?>) typeParametersValue).stream()
+                    .filter(Objects::nonNull)
+                    .map(String::valueOf)
+                    .map(String::trim)
+                    .map(AbstractJavaCodegen::normalizeParametricArgument)
+                    .filter(StringUtils::isNotBlank)
+                    .collect(Collectors.toList());
+
+            if (normalizedTypeParameters.isEmpty()) {
+                codegenModel.vendorExtensions.remove(key);
+                continue;
+            }
+
+            codegenModel.vendorExtensions.put(key, normalizedTypeParameters);
+        }
+    }
+
+    private void applyParametricArgumentsToParent(CodegenModel codegenModel) {
+        if (codegenModel == null || StringUtils.isBlank(codegenModel.parent)
+                || codegenModel.vendorExtensions == null
+                || codegenModel.vendorExtensions.get(X_PARAMETRIC_ARGUMENTS) == null) {
+            return;
+        }
+
+        if (codegenModel.parent.contains("<")) {
+            return;
+        }
+
+        Object typeParametersValue = codegenModel.vendorExtensions.get(X_PARAMETRIC_ARGUMENTS);
         if (!(typeParametersValue instanceof Collection<?>)) {
             return;
         }
 
-        List<String> normalizedTypeParameters = ((Collection<?>) typeParametersValue).stream()
+        String joinedTypeParameters = ((Collection<?>) typeParametersValue).stream()
                 .filter(Objects::nonNull)
                 .map(String::valueOf)
                 .map(String::trim)
                 .filter(StringUtils::isNotBlank)
-                .collect(Collectors.toList());
+                .collect(Collectors.joining(", "));
 
-        if (normalizedTypeParameters.isEmpty()) {
-            codegenModel.vendorExtensions.remove(X_TYPE_PARAMETERS);
+        if (StringUtils.isBlank(joinedTypeParameters)) {
             return;
         }
 
-        codegenModel.vendorExtensions.put(X_TYPE_PARAMETERS, normalizedTypeParameters);
+        codegenModel.parent = codegenModel.parent + "<" + joinedTypeParameters + ">";
+
+        // Add a special vendor extension for retriving the parameters in chevrons in the template
+        codegenModel.vendorExtensions.put("parametricArguments", joinedTypeParameters);
+    }
+
+    private void ensureAllOfParentModel(CodegenModel codegenModel, Schema model, Map<String, Schema> allDefinitions) {
+        if (codegenModel == null || model == null || model.getAllOf() == null || model.getAllOf().isEmpty()) {
+            return;
+        }
+
+        if (StringUtils.isNotBlank(codegenModel.parent) && codegenModel.parentModel != null) {
+            return;
+        }
+
+        for (Object allOfObj : model.getAllOf()) {
+            if (!(allOfObj instanceof Schema)) {
+                continue;
+            }
+
+            Schema<?> allOfSchema = (Schema<?>) allOfObj;
+            String parentSchema = ModelUtils.getSimpleRef(allOfSchema.get$ref());
+            if (StringUtils.isBlank(parentSchema)) {
+                continue;
+            }
+
+            Schema<?> parentModel = allDefinitions == null ? null : allDefinitions.get(parentSchema);
+            if (parentModel == null) {
+                continue;
+            }
+
+            if (StringUtils.isBlank(codegenModel.parent)) {
+                codegenModel.parent = toModelName(parentSchema);
+                codegenModel.parentSchema = parentSchema;
+            }
+
+            if (codegenModel.parentModel == null) {
+                codegenModel.parentModel = super.fromModel(codegenModel.parent, parentModel);
+            }
+            break;
+        }
+    }
+
+    private static String normalizeParametricArgument(String value) {
+        if (StringUtils.isBlank(value)) {
+            return null;
+        }
+
+        String normalized = value.trim();
+        if (normalized.startsWith("#/")) {
+            normalized = normalized.substring(2);
+        }
+        int lastSlash = normalized.lastIndexOf('/');
+        if (lastSlash >= 0 && lastSlash < normalized.length() - 1) {
+            normalized = normalized.substring(lastSlash + 1);
+        }
+        return normalized.trim();
     }
 
     private void addAdditionalImports(CodegenModel model, CodegenComposedSchemas composedSchemas) {
