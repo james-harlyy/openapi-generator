@@ -6208,7 +6208,12 @@ public class DefaultCodegen implements CodegenConfig {
             addImport(model.imports, typeMapping.get("map"));
         }
 
-        addImports(model, property);
+        boolean isParametricType = property.getVendorExtensions().containsKey("x-type-parameter");
+        // Check the
+
+        if (!isParametricType) {
+            addImports(model, property);
+        }
     }
 
     /**
@@ -7517,7 +7522,11 @@ public class DefaultCodegen implements CodegenConfig {
 
             // recursively add import
             while (arrayInnerProperty != null) {
-                imports.add(arrayInnerProperty.baseType);
+                boolean isParametricType = propertySchema.getExtensions().containsKey("x-type-parameter");
+                if (!isParametricType) {
+                    imports.add(arrayInnerProperty.baseType);
+                }
+
                 arrayInnerProperty = arrayInnerProperty.items;
             }
         } else {

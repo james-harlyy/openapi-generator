@@ -855,22 +855,26 @@ public abstract class AbstractJavaCodegen extends DefaultCodegen implements Code
                                 if (!typeMapping.isEmpty() && parentVar.dataType != null) {
                                     parentVar.dataType = applyTypeMapping(parentVar.dataType, typeMapping);
                                 }
+
+                                LOGGER.debug("adding parent variable {} to {}", property.name, codegenModel.name);
+                                codegenModel.parentVars.add(parentVar);
+                                Set<String> imports = parentVar
+                                        .getImports(true, this.importBaseType, generatorMetadata.getFeatureSet()).stream()
+                                        .filter(Objects::nonNull).collect(Collectors.toSet());
+
+                                for (String imp : imports) {
+                                    String resolvedImport = typeMapping.getOrDefault(imp, imp);
+
+                                    // Avoid dupes
+                                    if (!codegenModel.getImports().contains(resolvedImport)) {
+                                        inheritedImports.add(resolvedImport);
+                                        codegenModel.getImports().add(resolvedImport);
+                                    }
+                                }
                             } catch (Exception e) {
                                 // best-effort substitution; on failure keep original types
                                 LOGGER.debug("failed to apply type argument mapping for {} -> {}: {}", codegenModel.name,
                                         parentCodegenModel.name, e.getMessage());
-                            }
-                            LOGGER.debug("adding parent variable {} to {}", property.name, codegenModel.name);
-                            codegenModel.parentVars.add(parentVar);
-                            Set<String> imports = parentVar
-                                    .getImports(true, this.importBaseType, generatorMetadata.getFeatureSet()).stream()
-                                    .filter(Objects::nonNull).collect(Collectors.toSet());
-                            for (String imp : imports) {
-                                // Avoid dupes
-                                if (!codegenModel.getImports().contains(imp)) {
-                                    inheritedImports.add(imp);
-                                    codegenModel.getImports().add(imp);
-                                }
                             }
                         }
                     }
