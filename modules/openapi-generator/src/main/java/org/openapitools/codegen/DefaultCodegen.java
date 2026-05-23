@@ -6209,8 +6209,6 @@ public class DefaultCodegen implements CodegenConfig {
         }
 
         boolean isParametricType = property.getVendorExtensions().containsKey("x-type-parameter");
-        // Check the
-
         if (!isParametricType) {
             addImports(model, property);
         }

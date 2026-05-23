@@ -386,11 +386,12 @@ public interface IJsonSchemaValidationProperties {
             }
             Stream<CodegenProperty> innerTypes = Stream.of(
                             allOfs.stream(), anyOfs.stream(), oneOfs.stream(), nots.stream())
-                    .flatMap(i -> i);
+                    .flatMap(i -> i)
+                    .filter(i -> i.getVendorExtensions() == null || !i.getVendorExtensions().containsKey("x-type-parameter"));
             innerTypes.flatMap(cp -> cp.getImports(importContainerType, importBaseType, featureSet).stream()).forEach(s -> imports.add(s));
         }
         // items can exist for AnyType and type array
-        if (this.getItems() != null && this.getIsArray()) {
+        if (this.getItems() != null && this.getIsArray() && (this.getItems().getVendorExtensions() == null || !this.getItems().getVendorExtensions().containsKey("x-type-parameter"))) {
             imports.addAll(this.getItems().getImports(importContainerType, importBaseType, featureSet));
         }
         // additionalProperties can exist for AnyType and type object
