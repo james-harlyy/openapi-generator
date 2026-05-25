@@ -84,6 +84,7 @@ public abstract class AbstractJavaCodegen extends DefaultCodegen implements Code
     private static final ZoneId UTC = ZoneId.of("UTC");
     private static final String X_TYPE_PARAMETER = "x-type-parameter";
     private static final String X_TYPE_PARAMETERS = "x-type-parameters";
+    private static final String X_TYPE_PARAMETERS_PARSED = "x-type-parameters-parsed";
     private static final String X_PARAMETRIC_ARGUMENTS = "x-parametric-arguments";
 
     public static final String DEFAULT_LIBRARY = "<default>";
@@ -2195,6 +2196,23 @@ public abstract class AbstractJavaCodegen extends DefaultCodegen implements Code
             }
 
             codegenModel.vendorExtensions.put(key, normalizedTypeParameters);
+            // If this is the model-level type parameters, also create a parsed
+            // vendor extension where each element is the first token (split on whitespace)
+            if (X_TYPE_PARAMETERS.equals(key)) {
+                List<String> parsed = normalizedTypeParameters.stream()
+                        .map(s -> {
+                            if (s == null) return null;
+                            String[] parts = s.split("\\s+");
+                            return parts.length > 0 ? parts[0] : s;
+                        })
+                        .filter(Objects::nonNull)
+                        .collect(Collectors.toList());
+                if (parsed.isEmpty()) {
+                    codegenModel.vendorExtensions.remove(X_TYPE_PARAMETERS_PARSED);
+                } else {
+                    codegenModel.vendorExtensions.put(X_TYPE_PARAMETERS_PARSED, parsed);
+                }
+            }
         }
     }
 
