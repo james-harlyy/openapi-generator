@@ -13,6 +13,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Locale;
+import java.util.regex.Pattern;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -167,9 +168,11 @@ public class ExpandableFieldIntegrationTest {
         assertTrue(content.contains("String nullExpandableField") || content.contains("private String nullExpandableField"),
                 "Null x-expandable field should remain as String");
         
-        // Should not contain any ExpandableField references
-        assertFalse(content.contains("ExpandableField"),
-                "No ExpandableField should be generated for empty extensions");
+        // Should not contain any generated ExpandableField types or imports
+        assertFalse(content.contains("ExpandableField<"),
+                "No ExpandableField type should be generated for empty extensions");
+        assertFalse(Pattern.compile("(?m)^import\\s+.*\\bExpandableField\\s*;").matcher(content).find(),
+                "No ExpandableField import should be generated for empty extensions");
     }
 
     /**
