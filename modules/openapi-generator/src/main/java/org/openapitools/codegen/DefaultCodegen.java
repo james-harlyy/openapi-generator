@@ -6150,17 +6150,104 @@ public class DefaultCodegen implements CodegenConfig {
                         && cp.getVendorExtensions().containsKey("x-type-parameter")
                 ) {
                     if (cm.getComposedSchemas().getAllOf().size() != 2) {
-                        throw new IllegalArgumentException("Parametric type extensions only support having 2 objects in 'allOf'");
+                        throw new IllegalArgumentException(
+                            "Parametric type extensions only support having 2 objects in 'allOf'"
+                        );
                     }
 
-                    String typeParameter = (String) cp.getVendorExtensions().get("x-type-parameter");
-                    int paramIndex = ((List<String>) cm.getComposedSchemas().getAllOf().getFirst().getVendorExtensions().get("x-type-parameters"))
-                        .indexOf(typeParameter);
+                    Schema propertyOwner = lookupSchema(cm.schemaName);
+                    List<Schema> ancestors = new ArrayList<>();
 
-                    String argType = ((List<String>) cm.getVendorExtensions().get("x-parametric-arguments")).get(paramIndex);
+                    // Walk inheritance chain until we find schema defining the property
+                    while (true) {
+                        ancestors.add(propertyOwner);
 
-                    cp.dataType = argType;
-                    cp.datatypeWithEnum = argType;
+                        if (propertyOwner.getAllOf() != null) {
+                            if (propertyOwner.getAllOf().size() != 2) {
+                                throw new IllegalArgumentException(
+                                    "Parametric type extensions only support having 2 objects in 'allOf'"
+                                );
+                            }
+
+                            Schema objSchema = (Schema) propertyOwner.getAllOf().get(1);
+
+                            if (objSchema.getProperties() != null &&
+                                objSchema.getProperties().containsKey(key)) {
+                                break;
+                            }
+
+                            String[] split = ((Schema) propertyOwner.getAllOf().get(0))
+                                .get$ref()
+                                .split("/");
+
+                            propertyOwner = lookupSchema(split[split.length - 1]);
+                        } else if (
+                            propertyOwner.getProperties() == null ||
+                                !propertyOwner.getProperties().containsKey(key)
+                        ) {
+                            throw new IllegalArgumentException("Schemas incorrectly structured");
+                        } else {
+                            break;
+                        }
+                    }
+
+                    String resolvedType =
+                        (String) cp.getVendorExtensions().get("x-type-parameter");
+
+                    // Walk DOWN the inheritance chain resolving generics
+                    for (int i = ancestors.size() - 1; i > 0; i--) {
+
+                        Schema parent = ancestors.get(i);
+                        Schema child = ancestors.get(i - 1);
+
+                        List<String> parentTypeParams =
+                            (List<String>) parent.getExtensions().get("x-type-parameters");
+
+                        List<String> childArguments =
+                            (List<String>) child.getExtensions().get("x-parametric-arguments");
+
+                        if (parentTypeParams == null || childArguments == null) {
+                            continue;
+                        }
+
+                        // Find matching type parameter in parent
+                        int index = -1;
+
+                        for (int j = 0; j < parentTypeParams.size(); j++) {
+                            String paramName =
+                                parentTypeParams.get(j).split(" ")[0];
+
+                            if (paramName.equals(resolvedType)) {
+                                index = j;
+                                break;
+                            }
+                        }
+
+                        if (index == -1) {
+                            // Substitute inside nested generic expressions
+                            for (int j = 0; j < parentTypeParams.size(); j++) {
+
+                                String paramName =
+                                    parentTypeParams.get(j).split(" ")[0];
+
+                                String replacement = childArguments.get(j);
+
+                                resolvedType =
+                                    resolvedType.replace(paramName, replacement);
+                            }
+                        } else {
+                            resolvedType = childArguments.get(index);
+                        }
+                    }
+
+                    // Cleanup refs
+                    if (resolvedType.contains("#/")) {
+                        resolvedType =
+                            resolvedType.substring(resolvedType.lastIndexOf("/") + 1);
+                    }
+
+                    cp.dataType = resolvedType;
+                    cp.datatypeWithEnum = resolvedType;
                 }
 
                 vars.add(cp);
@@ -6207,6 +6294,18 @@ public class DefaultCodegen implements CodegenConfig {
             }
         }
         return;
+    }
+
+    private Schema lookupSchema(String schemaName) {
+        Schema<?> parentSchema = null;
+        Map<String, Schema> schemas = (openAPI != null && openAPI.getComponents() != null)
+            ? openAPI.getComponents().getSchemas()
+            : null;
+
+        if (schemas != null) {
+            parentSchema = schemas.get(schemaName);
+        }
+        return parentSchema;
     }
 
     /**

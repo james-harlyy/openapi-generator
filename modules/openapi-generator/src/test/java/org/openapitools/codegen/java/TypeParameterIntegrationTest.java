@@ -72,7 +72,7 @@ public class TypeParameterIntegrationTest {
         final CodegenConfigurator configurator = new CodegenConfigurator()
                 .setGeneratorName("java")
                 .setLibrary("restclient")
-                .setInputSpec("/home/james/Documents/repos/services/libs/client/api/openapi.yaml")
+                .setInputSpec("/home/james/Documents/repos/services/infra/openapi/openapi.json")
                 .setOutputDir(tempDir.toAbsolutePath().toString())
                 .setTemplateDir("/home/james/Documents/repos/services/infra/openapi/templates")
                 .addOpenapiNormalizer("REF_AS_PARENT_IN_ALLOF", "true")

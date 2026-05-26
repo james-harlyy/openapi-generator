@@ -962,7 +962,7 @@ public abstract class AbstractJavaCodegen extends DefaultCodegen implements Code
                 List<String> actualArgs = (List<String>) rawActualArgs;
 
                 for (int i = 0; i < parentParams.size() && i < actualArgs.size(); i++) {
-                    String paramName = parentParams.get(i);
+                    String paramName = parentParams.get(i).split(" ")[0];
                     String argValue = actualArgs.get(i);
                     if (argValue == null) {
                         continue;
