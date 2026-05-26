@@ -95,6 +95,8 @@ import static org.openapitools.codegen.utils.StringUtils.*;
 
 public class DefaultCodegen implements CodegenConfig {
     private final Logger LOGGER = LoggerFactory.getLogger(DefaultCodegen.class);
+    private static final Pattern LIST_TYPE_PATTERN = Pattern.compile("\\bList\\b");
+    private static final Pattern MAP_TYPE_PATTERN = Pattern.compile("\\bMap\\b");
 
     public static FeatureSet DefaultFeatureSet;
 
@@ -6330,8 +6332,25 @@ public class DefaultCodegen implements CodegenConfig {
         }
 
         boolean isParametricType = property.getVendorExtensions().containsKey("x-type-parameter");
-        if (!isParametricType) {
+        if (isParametricType) {
+            addImportsForParametricType(model, property.dataType);
+            addImportsForParametricType(model, property.datatypeWithEnum);
+        } else {
             addImports(model, property);
+        }
+    }
+
+    private void addImportsForParametricType(CodegenModel model, String dataType) {
+        if (StringUtils.isBlank(dataType)) {
+            return;
+        }
+
+        if (LIST_TYPE_PATTERN.matcher(dataType).find()) {
+            addImport(model.imports, "List");
+        }
+
+        if (MAP_TYPE_PATTERN.matcher(dataType).find()) {
+            addImport(model.imports, "Map");
         }
     }
 

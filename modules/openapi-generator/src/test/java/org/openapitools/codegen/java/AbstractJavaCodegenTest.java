@@ -1098,6 +1098,23 @@ public class AbstractJavaCodegenTest {
         Assert.assertTrue(model.imports.contains("List"), "List import should be added");
     }
 
+    @Test(description = "test x-type-parameter vendor extension adds imports for resolved generic collections")
+    public void testXTypeParameterVendorExtensionForGenericCollections() {
+        Schema<Object> schema = new ObjectSchema();
+        Schema<Object> analytics = new Schema<>();
+        analytics.addExtension("x-type-parameter", "Map<String, List<R>>");
+        schema.setProperties(Collections.singletonMap("analytics", analytics));
+
+        org.openapitools.codegen.languages.JavaClientCodegen codegen = new org.openapitools.codegen.languages.JavaClientCodegen();
+        codegen.setOpenAPI(TestUtils.createOpenAPIWithOneSchema("sample", schema));
+
+        CodegenModel model = codegen.fromModel("sample", schema);
+
+        Assert.assertEquals(model.vars.get(0).dataType, "Map<String, List<R>>");
+        Assert.assertTrue(model.imports.contains("Map"), "Map import should be added");
+        Assert.assertTrue(model.imports.contains("List"), "List import should be added");
+    }
+
     @Test(description = "test x-expandable vendor extension transforms property type to ExpandableField<Type>")
     public void testXExpandableVendorExtension() {
         CodegenModel model = new CodegenModel();
