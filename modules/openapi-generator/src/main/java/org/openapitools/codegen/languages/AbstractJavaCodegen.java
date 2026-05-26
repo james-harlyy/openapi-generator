@@ -980,6 +980,30 @@ public abstract class AbstractJavaCodegen extends DefaultCodegen implements Code
         return mapping;
     }
 
+    private boolean isMappingCyclicFrom(String node, Map<String, String> mapping, java.util.Set<String> keys,
+            java.util.Set<String> stack) {
+        if (!keys.contains(node)) {
+            return false;
+        }
+        if (stack.contains(node)) {
+            return true;
+        }
+        stack.add(node);
+        String val = mapping.get(node);
+        if (val != null) {
+            for (String neigh : keys) {
+                if (java.util.regex.Pattern.compile("\\b" + java.util.regex.Pattern.quote(neigh) + "\\b")
+                        .matcher(val).find()) {
+                    if (isMappingCyclicFrom(neigh, mapping, keys, stack)) {
+                        return true;
+                    }
+                }
+            }
+        }
+        stack.remove(node);
+        return false;
+    }
+
     /**
      * Apply a mapping from type parameter name -> concrete expression to a type string.
      * Performs repeated substitution until stable or until a small iteration limit.
@@ -988,15 +1012,29 @@ public abstract class AbstractJavaCodegen extends DefaultCodegen implements Code
         if (type == null || mapping == null || mapping.isEmpty()) {
             return type;
         }
+        // detect cyclic parameters (self-references or mutual cycles)
+        java.util.Set<String> keys = mapping.keySet();
+        java.util.Set<String> cyclic = new java.util.HashSet<>();
+        for (String k : keys) {
+            if (isMappingCyclicFrom(k, mapping, keys, new java.util.HashSet<>())) {
+                cyclic.add(k);
+            }
+        }
 
         String result = type;
-        // iterate to resolve nested parameter references
+        // iterate to resolve nested parameter references; for cyclic params allow
+        // only one expansion (skip further expansions to avoid unbounded nesting)
         for (int pass = 0; pass < 10; pass++) {
             String updated = result;
             for (Map.Entry<String, String> e : mapping.entrySet()) {
                 String param = e.getKey();
                 String val = e.getValue();
                 if (val == null) {
+                    continue;
+                }
+                // if this param is part of a cycle, only allow replacement on the
+                // first pass to avoid repeated expansion (e.g. T -> List<T>)
+                if (pass > 0 && cyclic.contains(param)) {
                     continue;
                 }
                 // replace whole-word occurrences of the param
