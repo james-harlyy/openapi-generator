@@ -6141,6 +6141,12 @@ public class DefaultCodegen implements CodegenConfig {
                     cp.isOverridden = true;
                 }
 
+                // Check for the type parameters extension
+                if (cp.getVendorExtensions() != null && cp.getVendorExtensions().containsKey("x-type-parameter")) {
+                    cp.dataType = (String) cp.getVendorExtensions().get("x-type-parameter");
+                    cp.datatypeWithEnum = (String) cp.getVendorExtensions().get("x-type-parameter");
+                }
+
                 vars.add(cp);
                 m.setHasVars(true);
 

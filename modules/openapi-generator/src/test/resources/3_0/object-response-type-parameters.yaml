@@ -1,0 +1,51 @@
+openapi: 3.0.3
+info:
+  title: Object Response Type Parameter Test API
+  version: 1.0.0
+paths:
+  /objects:
+    get:
+      operationId: getObjectResponse
+      responses:
+        "200":
+          description: success
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ObjectResponse"
+components:
+  schemas:
+    BaseObject:
+      type: object
+      properties:
+        id:
+          type: string
+    BaseResponse:
+      required:
+        - data
+        - object
+        - url
+      type: object
+      properties:
+        data:
+          type: object
+          x-type-parameter: T
+        object:
+          type: string
+          description: Identifies the returned object type.
+        url:
+          type: string
+          description: URL used to fetch the response.
+      x-type-parameters:
+        - T
+    ObjectResponse:
+      description: The ObjectResponse is a standard response returned by the Harlyy API when requesting a specific object, creating a new object or updating an existing object.
+      allOf:
+        - $ref: "#/components/schemas/BaseResponse"
+        - type: object
+          properties: {}
+          description: The ObjectResponse is a standard response returned by the Harlyy API when requesting a specific object, creating a new object or updating an existing object.
+      x-parametric-arguments:
+        - T
+      x-type-parameters:
+        - T extends BaseObject

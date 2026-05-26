@@ -67,6 +67,44 @@ public class TypeParameterIntegrationTest {
                 "IncidentAnalytics should pass parametric arguments into the parent class");
     }
 
+    @Test
+    public void testBoundedTypeParametersOnComposedModels(@TempDir Path tempDir) throws IOException {
+        final CodegenConfigurator configurator = new CodegenConfigurator()
+                .setGeneratorName("java")
+                .setLibrary("restclient")
+                .setInputSpec("/home/james/Documents/repos/services/libs/client/api/openapi.yaml")
+                .setOutputDir(tempDir.toAbsolutePath().toString())
+                .setTemplateDir("/home/james/Documents/repos/services/infra/openapi/templates")
+                .addOpenapiNormalizer("REF_AS_PARENT_IN_ALLOF", "true")
+                .addTypeMapping("FilterValue", "JsonNode")
+                .addImportMapping("FilterValue", "com.fasterxml.jackson.databind.JsonNode")
+                .addAdditionalProperty("modelPackage", "com.example.model")
+                .addAdditionalProperty("generatedBuilders", true)
+                .addAdditionalProperty("generateClientAsBean", true)
+                .addAdditionalProperty("serializableModel", true)
+                .addAdditionalProperty("serializationLibrary", "jackson");
+
+        final ClientOptInput clientOptInput = configurator.toClientOptInput();
+        DefaultGenerator generator = new DefaultGenerator();
+        List<File> files = generator.opts(clientOptInput).generate();
+
+        assertFalse(files.isEmpty(), "No files were generated");
+
+        File baseResponseFile = findGeneratedFile(tempDir, "BaseResponse.java");
+        assertNotNull(baseResponseFile, "BaseResponse.java file was not generated");
+        String baseResponseContent = Files.readString(baseResponseFile.toPath());
+        assertTrue(baseResponseContent.contains("public class BaseResponse<T>"),
+                "BaseResponse should declare a generic type parameter");
+        assertTrue(baseResponseContent.contains("private T data") || baseResponseContent.contains("T data"),
+                "BaseResponse.data should use the generic type parameter");
+
+        File objectResponseFile = findGeneratedFile(tempDir, "ObjectResponse.java");
+        assertNotNull(objectResponseFile, "ObjectResponse.java file was not generated");
+        String objectResponseContent = Files.readString(objectResponseFile.toPath());
+        assertTrue(objectResponseContent.contains("public class ObjectResponse<T extends BaseObject> extends BaseResponse<T>"),
+                "ObjectResponse should keep its bounded type parameter and pass it to the parent model");
+    }
+
     private File findGeneratedFile(Path outputDir, String fileName) {
         try {
             return Files.walk(outputDir)
