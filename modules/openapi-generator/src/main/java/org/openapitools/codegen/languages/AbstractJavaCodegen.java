@@ -2322,6 +2322,23 @@ public abstract class AbstractJavaCodegen extends DefaultCodegen implements Code
                 }
             }
         }
+        // If the model declares parametric arguments (x-parametric-arguments), ensure
+        // any referenced types (e.g. List, Map, etc.) are added to imports so templates
+        // can render necessary import statements.
+        if (model != null && model.vendorExtensions != null && model.vendorExtensions.get(X_PARAMETRIC_ARGUMENTS) instanceof Collection<?>) {
+            Collection<?> paramArgs = (Collection<?>) model.vendorExtensions.get(X_PARAMETRIC_ARGUMENTS);
+            for (Object raw : paramArgs) {
+                if (raw == null) continue;
+                String val = String.valueOf(raw).trim();
+                Matcher m = Pattern.compile("[A-Za-z0-9_.$]+").matcher(val);
+                while (m.find()) {
+                    String token = m.group();
+                    if (importMapping().get(token) != null) {
+                        model.imports.add(token);
+                    }
+                }
+            }
+        }
     }
 
     @Override

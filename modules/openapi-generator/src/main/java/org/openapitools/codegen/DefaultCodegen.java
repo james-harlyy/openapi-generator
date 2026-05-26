@@ -6141,10 +6141,26 @@ public class DefaultCodegen implements CodegenConfig {
                     cp.isOverridden = true;
                 }
 
-                // Check for the type parameters extension
-                if (cp.getVendorExtensions() != null && cp.getVendorExtensions().containsKey("x-type-parameter")) {
-                    cp.dataType = (String) cp.getVendorExtensions().get("x-type-parameter");
-                    cp.datatypeWithEnum = (String) cp.getVendorExtensions().get("x-type-parameter");
+                // Check for the type parameters extension only when processing inherited parent properties
+                if (
+                    cm != null
+                        && cm.allVars == vars
+                        && cp.isOverridden
+                        && cp.getVendorExtensions() != null
+                        && cp.getVendorExtensions().containsKey("x-type-parameter")
+                ) {
+                    if (cm.getComposedSchemas().getAllOf().size() != 2) {
+                        throw new IllegalArgumentException("Parametric type extensions only support having 2 objects in 'allOf'");
+                    }
+
+                    String typeParameter = (String) cp.getVendorExtensions().get("x-type-parameter");
+                    int paramIndex = ((List<String>) cm.getComposedSchemas().getAllOf().getFirst().getVendorExtensions().get("x-type-parameters"))
+                        .indexOf(typeParameter);
+
+                    String argType = ((List<String>) cm.getVendorExtensions().get("x-parametric-arguments")).get(paramIndex);
+
+                    cp.dataType = argType;
+                    cp.datatypeWithEnum = argType;
                 }
 
                 vars.add(cp);
